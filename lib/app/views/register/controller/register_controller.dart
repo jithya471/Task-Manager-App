@@ -1,6 +1,5 @@
 import 'dart:developer';
 import 'dart:io';
-
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/material.dart';
@@ -8,6 +7,7 @@ import 'package:get/get.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:task_manager/app/routes/app_routes.dart';
 import 'package:task_manager/app/services/auth_service.dart';
+import 'package:task_manager/app/utils/color.dart';
 
 class RegisterController extends GetxController {
   final AuthService _authService = Get.find<AuthService>();
@@ -38,8 +38,8 @@ class RegisterController extends GetxController {
       Get.snackbar(
         'Error',
         'Failed to pick image',
-        backgroundColor: Colors.red[100],
-        colorText: Colors.red[900],
+        backgroundColor: Appcolors.red,
+        colorText: Appcolors.red.withValues(alpha: 0.6),
       );
     }
   }
@@ -66,10 +66,10 @@ class RegisterController extends GetxController {
       final snapshot = await uploadTask.whenComplete(() => null);
       final downloadUrl = await snapshot.ref.getDownloadURL();
 
-      log('Image uploaded successfully: $downloadUrl'); 
+      log('Image uploaded successfully: $downloadUrl');
       return downloadUrl;
     } catch (e) {
-      log('Error uploading image: $e'); 
+      log('Error uploading image: $e');
       Get.snackbar(
         'Error',
         'Failed to upload profile picture',
@@ -125,7 +125,7 @@ class RegisterController extends GetxController {
         emailController.text.trim(),
         passwordController.text.trim(),
         nameController.text.trim(),
-        avatarUrl, 
+        avatarUrl,
       );
 
       // If registration successful, navigate to home

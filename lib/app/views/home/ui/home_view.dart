@@ -3,9 +3,9 @@ import 'package:intl/intl.dart';
 import 'package:table_calendar/table_calendar.dart';
 import 'package:task_manager/app/models/task_model.dart';
 import 'package:task_manager/app/routes/app_routes.dart';
+import 'package:task_manager/app/services/connectivity_service.dart';
 import 'package:task_manager/app/utils/color.dart';
 import 'package:task_manager/app/utils/styles.dart';
-
 import 'package:get/get.dart';
 import 'package:task_manager/app/views/add_task/ui/add_task_view.dart';
 import 'package:task_manager/app/views/home/controller/home_controller.dart';
@@ -21,8 +21,13 @@ class _HomeViewState extends State<HomeView> {
   final _controller = Get.put(HomeController());
   DateTime _focusedDay = DateTime.now();
   DateTime? _selectedDay;
-  RxBool batchModeEnabled = false.obs;
   RxList<String> selectedTaskIds = <String>[].obs;
+  @override
+  void initState() {
+    super.initState();
+
+    Get.put(ConnectivityService());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -47,20 +52,49 @@ class _HomeViewState extends State<HomeView> {
         style: style(18, FontWeight.w500, Appcolors.white),
       ),
       leading: IconButton(
-          icon: const Icon(Icons.brightness_4, color: Appcolors.white),
-          onPressed: () {}
-          //  _controller.toggleTheme,
-          ),
+        icon: const Icon(Icons.brightness_4, color: Appcolors.white),
+        onPressed: () {},
+      ),
       actions: [
         IconButton(
-          icon: const Icon(Icons.filter_list, color: Appcolors.white),
+          icon: const Icon(Icons.sync, color: Appcolors.white),
+          onPressed: () => _controller.syncAllTasks(),
+          tooltip: 'Sync all tasks',
+        ),
+        IconButton(
+          icon: Obx(() => Stack(
+                children: [
+                  const Icon(Icons.filter_list, color: Appcolors.white),
+                  if (_controller.appliedFiltersCount > 0)
+                    Positioned(
+                      right: 0,
+                      top: 0,
+                      child: Container(
+                        padding: const EdgeInsets.all(2),
+                        decoration: BoxDecoration(
+                          color: Appcolors.red,
+                          shape: BoxShape.circle,
+                        ),
+                        child: Text(
+                          '${_controller.appliedFiltersCount}',
+                          style: const TextStyle(
+                            color: Appcolors.white,
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              )),
           onPressed: _showFilterOptions,
         ),
         IconButton(
-            onPressed: () {
-              _controller.logout();
-            },
-            icon: Icon(Icons.logout_outlined, color: Appcolors.white)),
+          onPressed: () {
+            _controller.logout();
+          },
+          icon: Icon(Icons.logout_outlined, color: Appcolors.white),
+        ),
       ],
     );
   }
@@ -79,11 +113,11 @@ class _HomeViewState extends State<HomeView> {
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             children: [
               _buildStatCard(
-                  'Pending', _controller.pendingTasks.value, Colors.orange),
+                  'Pending', _controller.pendingTasks.value, Appcolors.red),
               _buildStatCard('In Progress', _controller.inProgressTasks.value,
-                  Colors.blue),
-              _buildStatCard(
-                  'Completed', _controller.completedTasks.value, Colors.green),
+                  Appcolors.lightBlue),
+              _buildStatCard('Completed', _controller.completedTasks.value,
+                  Appcolors.green),
             ],
           ),
           const SizedBox(height: 8),
@@ -175,73 +209,61 @@ class _HomeViewState extends State<HomeView> {
   }
 
   Widget _buildTaskTile(Task task) {
-    final bool isSelected = selectedTaskIds.contains(task.id);
-
-    return Obx(() => ListTile(
-          leading: batchModeEnabled.value
-              ? Checkbox(
-                  value: isSelected,
-                  onChanged: (bool? value) {
-                    if (value == true) {
-                      selectedTaskIds.add(task.id);
-                    } else {
-                      selectedTaskIds.remove(task.id);
-                    }
-                  },
-                )
-              : _getPriorityIcon(task.priority),
-          title: Text(
-            task.title,
-            style: TextStyle(
-              decoration: task.status == TaskStatus.completed
-                  ? TextDecoration.lineThrough
-                  : null,
-            ),
-          ),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(DateFormat('MMM dd, yyyy').format(task.dueDate)),
-              if (!task.isSynced)
-                Row(
-                  children: [
-                    Icon(Icons.sync_problem, size: 16, color: Colors.orange),
-                    const SizedBox(width: 4),
-                    Text(
-                      'Not synced',
-                      style: TextStyle(
-                        color: Colors.orange,
-                        fontSize: 12,
-                      ),
-                    ),
-                  ],
+    return ListTile(
+      leading: _getPriorityIcon(task.priority),
+      title: Text(
+        task.title,
+        style: TextStyle(
+          decoration: task.status == TaskStatus.completed
+              ? TextDecoration.lineThrough
+              : null,
+        ),
+      ),
+      subtitle: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(DateFormat('MMM dd, yyyy').format(task.dueDate)),
+          if (!task.isSynced)
+            Row(
+              children: [
+                Icon(Icons.sync_problem, size: 16, color: Appcolors.red),
+                const SizedBox(width: 4),
+                Text(
+                  'Not synced',
+                  style: TextStyle(
+                    color: Appcolors.red,
+                    fontSize: 12,
+                  ),
                 ),
+              ],
+            ),
+        ],
+      ),
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (!task.isSynced)
+            IconButton(
+              icon: Icon(Icons.sync, color: Appcolors.lightBlue),
+              onPressed: () => _controller.syncTask(task),
+              tooltip: 'Sync task',
+            ),
+          PopupMenuButton(
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                child: Text('Edit'),
+                onTap: () => _editTask(task),
+              ),
+              PopupMenuItem(
+                child: Text('Delete'),
+                onTap: () => _deleteTask(task),
+              ),
             ],
           ),
-          trailing: batchModeEnabled.value
-              ? null
-              : PopupMenuButton(
-                  itemBuilder: (context) => [
-                    PopupMenuItem(
-                      child: Text('Edit'),
-                      onTap: () => _editTask(task),
-                    ),
-                    PopupMenuItem(
-                      child: Text('Delete'),
-                      onTap: () => _deleteTask(task),
-                    ),
-                  ],
-                ),
-          onTap: batchModeEnabled.value
-              ? () {
-                  if (isSelected) {
-                    selectedTaskIds.remove(task.id);
-                  } else {
-                    selectedTaskIds.add(task.id);
-                  }
-                }
-              : () => _showTaskDetails(task),
-        ));
+        ],
+      ),
+      onTap: () => _showTaskDetails(task),
+    );
   }
 
   void _onDaySelected(DateTime selectedDay, DateTime focusedDay) {
@@ -258,122 +280,6 @@ class _HomeViewState extends State<HomeView> {
 
   void _addTaskForSelectedDate() {
     Get.toNamed(AppRoutes.addtask, arguments: {'selectedDate': _selectedDay});
-  }
-
-  void _showFilterOptions() {
-    Get.bottomSheet(
-      Container(
-        padding: const EdgeInsets.all(16.0),
-        decoration: BoxDecoration(
-          color: Theme.of(context).scaffoldBackgroundColor,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('Filter & Sort Tasks',
-                style: style(18, FontWeight.bold, Appcolors.primary)),
-            const Divider(),
-            _buildFilterSection(),
-            const Divider(),
-            _buildSortSection(),
-            const SizedBox(height: 16),
-            ElevatedButton(
-              onPressed: _controller.clearFilters,
-              child: const Text('Clear All Filters'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildFilterSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Status', style: TextStyle(fontWeight: FontWeight.bold)),
-        Wrap(
-          spacing: 8,
-          children: TaskStatus.values.map((status) {
-            return FilterChip(
-              label: Text(status.toString().split('.').last),
-              selected: _controller.statusFilter.value == status,
-              onSelected: (selected) {
-                _controller.filterByStatus(selected ? status : null);
-              },
-            );
-          }).toList(),
-        ),
-        const SizedBox(height: 8),
-        const Text('Priority', style: TextStyle(fontWeight: FontWeight.bold)),
-        Wrap(
-          spacing: 8,
-          children: TaskPriority.values.map((priority) {
-            return FilterChip(
-              label: Text(priority.toString().split('.').last),
-              selected: _controller.priorityFilter.value == priority,
-              onSelected: (selected) {
-                _controller.filterByPriority(selected ? priority : null);
-              },
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildSortSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Sort By', style: TextStyle(fontWeight: FontWeight.bold)),
-        Wrap(
-          spacing: 8,
-          children: [
-            ChoiceChip(
-              label: const Text('Due Date'),
-              selected: _controller.sortBy.value == 'dueDate',
-              onSelected: (selected) {
-                if (selected) {
-                  _controller.updateSorting(
-                      'dueDate', _controller.isDescending.value);
-                }
-              },
-            ),
-            ChoiceChip(
-              label: const Text('Created Date'),
-              selected: _controller.sortBy.value == 'createdAt',
-              onSelected: (selected) {
-                if (selected) {
-                  _controller.updateSorting(
-                      'createdAt', _controller.isDescending.value);
-                }
-              },
-            ),
-          ],
-        ),
-        Row(
-          children: [
-            const Text('Order:', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(width: 8),
-            ToggleButtons(
-              isSelected: [
-                !_controller.isDescending.value,
-                _controller.isDescending.value
-              ],
-              onPressed: (index) {
-                _controller.updateSorting(_controller.sortBy.value, index == 1);
-              },
-              children: const [
-                Icon(Icons.arrow_upward),
-                Icon(Icons.arrow_downward),
-              ],
-            ),
-          ],
-        ),
-      ],
-    );
   }
 
   Widget _buildStatCard(String label, int count, Color color) {
@@ -454,19 +360,16 @@ class _HomeViewState extends State<HomeView> {
               Text(DateFormat('MMM dd, yyyy HH:mm').format(task.dueDate)),
               const SizedBox(height: 8),
               Text('Status:', style: TextStyle(fontWeight: FontWeight.bold)),
-              Chip(
-                label: Text(task.status.toString().split('.').last),
-                backgroundColor: _getStatusColor(task.status),
-              ),
+              _buildStatusDropdown(task),
               if (!task.isSynced)
                 Row(
                   children: [
-                    Icon(Icons.sync_problem, size: 16, color: Colors.orange),
+                    Icon(Icons.sync_problem, size: 16, color: Appcolors.red),
                     const SizedBox(width: 4),
                     Text(
                       'Not synced',
                       style: TextStyle(
-                        color: Colors.orange,
+                        color: Appcolors.red,
                         fontSize: 12,
                       ),
                     ),
@@ -487,30 +390,27 @@ class _HomeViewState extends State<HomeView> {
             },
             child: const Text('Edit'),
           ),
-          // if (task.status != TaskStatus.completed)
-          //   TextButton(
-          //     onPressed: () async {
-          //       await _controller.updateTask(
-          //         task.copyWith(status: TaskStatus.completed),
-          //       );
-          //       Get.back();
-          //     },
-          //     child: const Text('Mark Complete'),
-          //   ),
         ],
       ),
     );
   }
 
-  Color _getStatusColor(TaskStatus status) {
-    switch (status) {
-      case TaskStatus.pending:
-        return Colors.orange.shade100;
-      case TaskStatus.inProgress:
-        return Colors.blue.shade100;
-      case TaskStatus.completed:
-        return Colors.green.shade100;
-    }
+  Widget _buildStatusDropdown(Task task) {
+    return DropdownButton<TaskStatus>(
+      value: task.status,
+      onChanged: (TaskStatus? newStatus) {
+        if (newStatus != null) {
+          _controller.updateTaskStatus(task, newStatus);
+          Get.back();
+        }
+      },
+      items: TaskStatus.values.map((TaskStatus status) {
+        return DropdownMenuItem<TaskStatus>(
+          value: status,
+          child: Text(status.toString().split('.').last),
+        );
+      }).toList(),
+    );
   }
 
   void _deleteTask(Task task) {
@@ -530,14 +430,148 @@ class _HomeViewState extends State<HomeView> {
               Get.snackbar(
                 'Success',
                 'Task deleted successfully',
-                backgroundColor: Colors.green,
-                colorText: Colors.white,
+                backgroundColor: Appcolors.green,
+                colorText: Appcolors.white,
               );
             },
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            child: const Text('Delete', style: TextStyle(color: Appcolors.red)),
           ),
         ],
       ),
     );
+  }
+
+  void _showFilterOptions() {
+    Get.bottomSheet(
+      SingleChildScrollView(
+        child: Container(
+          padding: const EdgeInsets.all(16.0),
+          decoration: BoxDecoration(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                children: [
+                  Spacer(),
+                  Text('Filter & Sort Tasks',
+                      style: style(18, FontWeight.bold, Appcolors.primary)),
+                  Spacer(),
+                  GestureDetector(
+                    onTap: () => Get.back(),
+                    child: Icon(Icons.close, color: Appcolors.black),
+                  )
+                ],
+              ),
+              const Divider(),
+              _buildMultiFilterSection(),
+              const Divider(),
+              _buildSortSection(),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                onPressed: () {
+                  _controller.clearFilters();
+                  Get.back();
+                },
+                child: const Text('Clear All Filters'),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildMultiFilterSection() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Status', style: TextStyle(fontWeight: FontWeight.bold)),
+        Obx(() => Wrap(
+              spacing: 8,
+              children: TaskStatus.values.map((status) {
+                return FilterChip(
+                  label: Text(status.toString().split('.').last),
+                  selected: _controller.selectedStatuses.contains(status),
+                  onSelected: (selected) {
+                    _controller.toggleStatusFilter(status);
+                  },
+                );
+              }).toList(),
+            )),
+        const SizedBox(height: 8),
+        const Text('Priority', style: TextStyle(fontWeight: FontWeight.bold)),
+        Obx(() => Wrap(
+              spacing: 8,
+              children: TaskPriority.values.map((priority) {
+                return FilterChip(
+                  label: Text(priority.toString().split('.').last),
+                  selected: _controller.selectedPriorities.contains(priority),
+                  onSelected: (selected) {
+                    _controller.togglePriorityFilter(priority);
+                  },
+                );
+              }).toList(),
+            )),
+      ],
+    );
+  }
+
+  Widget _buildSortSection() {
+    return Obx(() => Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Sort By',
+                style: TextStyle(fontWeight: FontWeight.bold)),
+            Wrap(
+              spacing: 8,
+              children: [
+                ChoiceChip(
+                  label: const Text('Due Date'),
+                  selected: _controller.sortBy.value == 'dueDate',
+                  onSelected: (selected) {
+                    if (selected) {
+                      _controller.updateSorting(
+                          'dueDate', _controller.isDescending.value);
+                    }
+                  },
+                ),
+                ChoiceChip(
+                  label: const Text('Created Date'),
+                  selected: _controller.sortBy.value == 'createdAt',
+                  onSelected: (selected) {
+                    if (selected) {
+                      _controller.updateSorting(
+                          'createdAt', _controller.isDescending.value);
+                    }
+                  },
+                ),
+              ],
+            ),
+            Row(
+              children: [
+                const Text('Order:',
+                    style: TextStyle(fontWeight: FontWeight.bold)),
+                const SizedBox(width: 8),
+                ToggleButtons(
+                  isSelected: [
+                    !_controller.isDescending.value,
+                    _controller.isDescending.value
+                  ],
+                  onPressed: (index) {
+                    _controller.updateSorting(
+                        _controller.sortBy.value, index == 1);
+                  },
+                  children: const [
+                    Icon(Icons.arrow_upward),
+                    Icon(Icons.arrow_downward),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ));
   }
 }

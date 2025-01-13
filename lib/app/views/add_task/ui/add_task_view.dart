@@ -1,3 +1,5 @@
+import 'dart:developer';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
@@ -10,7 +12,7 @@ import 'package:task_manager/app/utils/styles.dart';
 import 'package:task_manager/app/views/add_task/controller/add_task_controller.dart';
 
 class AddTaskView extends StatefulWidget {
-  final Task? task; // Pass null for adding new task, existing task for editing
+  final Task? task;
   const AddTaskView({super.key, this.task});
 
   @override
@@ -218,48 +220,50 @@ class _AddTaskViewState extends State<AddTaskView> {
 
   Future<void> _saveTask() async {
     if (_formKey.currentState!.validate()) {
-      final dueDate = DateTime(
-        _selectedDate.year,
-        _selectedDate.month,
-        _selectedDate.day,
-        _selectedTime.hour,
-        _selectedTime.minute,
-      );
-
-      final task = Task(
-        id: widget.task?.id ?? DateTime.now().millisecondsSinceEpoch.toString(),
-        title: _titleController.text,
-        description: _descriptionController.text,
-        dueDate: dueDate,
-        priority: _selectedPriority,
-        status: widget.task?.status ?? TaskStatus.pending,
-        userId: _authService.user.value?.uid ?? '',
-      );
-
       try {
+        final dueDate = DateTime(
+          _selectedDate.year,
+          _selectedDate.month,
+          _selectedDate.day,
+          _selectedTime.hour,
+          _selectedTime.minute,
+        );
+
+        final task = Task(
+          id: widget.task?.id ??
+              DateTime.now().millisecondsSinceEpoch.toString(),
+          title: _titleController.text,
+          description: _descriptionController.text,
+          dueDate: dueDate,
+          priority: _selectedPriority,
+          status: widget.task?.status ?? TaskStatus.pending,
+          userId: _authService.user.value?.uid ?? '',
+        );
+
+        bool success;
         if (widget.task != null) {
-          await controller.updateTask(task);
-          Get.back();
-          Get.snackbar(
-            'Success',
-            'Task updated successfully',
-            backgroundColor: Appcolors.green,
-            colorText: Appcolors.white,
-          );
+          success = await controller.updateTask(task);
         } else {
-          await controller.addTask(task);
+          success = await controller.addTask(task);
+        }
+
+        if (success) {
           Get.back();
           Get.snackbar(
             'Success',
-            'Task saved successfully',
+            'Task ${widget.task != null ? 'updated' : 'added'} successfully',
+            snackPosition: SnackPosition.BOTTOM,
             backgroundColor: Appcolors.green,
             colorText: Appcolors.white,
           );
         }
       } catch (e) {
+        log('Error saving task: $e');
+        Get.back();
         Get.snackbar(
-          'Error',
-          'Failed to ${widget.task != null ? 'update' : 'add'} task: ${e.toString()}',
+          'Warning',
+          'Task saved but there might be sync issues',
+          snackPosition: SnackPosition.BOTTOM,
           backgroundColor: Appcolors.red,
           colorText: Appcolors.white,
         );

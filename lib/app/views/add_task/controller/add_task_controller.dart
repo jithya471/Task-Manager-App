@@ -1,28 +1,34 @@
 import 'dart:developer';
-
 import 'package:get/get.dart';
 import 'package:task_manager/app/models/task_model.dart';
-import 'package:task_manager/app/routes/app_routes.dart';
-import 'package:task_manager/app/services/notification_service.dart';
 import 'package:task_manager/app/services/task_service.dart';
 
 class AddTaskController extends GetxController {
-  final TaskService _taskService = Get.put(TaskService());
-  final LocalNotificationsService _notificationsService =
-      Get.put(LocalNotificationsService());
-  Future<void> addTask(Task task) async {
+  late final TaskService _taskService;
+
+  @override
+  void onInit() {
+    super.onInit();
+    _taskService = Get.find<TaskService>();
+  }
+
+  Future<bool> addTask(Task task) async {
     try {
-      await _taskService.addTask(task);
-      Get.toNamed(AppRoutes.homeView);
+      await _taskService.addTask(task); 
+      return true;
     } catch (e) {
-      // Log the error for debugging
-      log('Error in HomeController.addTask: $e');
-      rethrow;
+      log('Error in AddTaskController.addTask: $e');
+      return false;
     }
   }
 
-  Future<void> updateTask(Task task) async {
-    await _taskService.updateTask(task);
-    await _notificationsService.updateTaskReminder(task);
+  Future<bool> updateTask(Task task) async {
+    try {
+      await _taskService.updateTask(task); 
+      return true;
+    } catch (e) {
+      log('Error in AddTaskController.updateTask: $e');
+      return false;
+    }
   }
 }

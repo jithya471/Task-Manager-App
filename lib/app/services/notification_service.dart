@@ -4,7 +4,6 @@ import 'package:task_manager/app/models/task_model.dart';
 import 'package:timezone/timezone.dart' as tz;
 import 'package:timezone/data/latest.dart' as tz;
 
-// Updated LocalNotificationsService
 class LocalNotificationsService extends GetxService {
   final FlutterLocalNotificationsPlugin _notifications =
       FlutterLocalNotificationsPlugin();

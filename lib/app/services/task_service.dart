@@ -1,139 +1,102 @@
+import 'dart:developer';
+
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:task_manager/app/models/task_model.dart';
-import 'package:task_manager/app/services/auth_service.dart';
 import 'package:task_manager/app/services/local_storage_service.dart';
-import 'package:task_manager/app/utils/color.dart';
 
 class TaskService extends GetxService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   final _localStorage = Get.put(LocalStorageService());
-  final _authService = Get.put(AuthService());
+
+  final RxList<Task> tasks = <Task>[].obs;
+
+  @override
+  Future<void> onInit() async {
+    super.onInit();
+    await _loadLocalTasks();
+  }
+
+  Future<void> _loadLocalTasks() async {
+    final localTasks = await _localStorage.getAllTasks();
+    tasks.assignAll(localTasks);
+  }
 
   Stream<List<Task>> getTasks({
-    TaskStatus? statusFilter,
-    TaskPriority? priorityFilter,
+    Set<TaskStatus>? selectedStatuses,
+    Set<TaskPriority>? selectedPriorities,
     String? sortBy,
     bool descending = false,
   }) {
-    Query query = _firestore
-        .collection('tasks')
-        .where('userId', isEqualTo: _authService.user.value?.uid);
+    return tasks.stream.map((taskList) {
+      var filteredTasks = taskList;
 
-    if (statusFilter != null) {
-      query = query.where('status', isEqualTo: statusFilter.toString());
-    }
+      if (selectedStatuses != null && selectedStatuses.isNotEmpty) {
+        filteredTasks = filteredTasks.where((task) {
+          return selectedStatuses.contains(task.status);
+        }).toList();
+      }
 
-    if (priorityFilter != null) {
-      query = query.where('priority', isEqualTo: priorityFilter.toString());
-    }
+      if (selectedPriorities != null && selectedPriorities.isNotEmpty) {
+        filteredTasks = filteredTasks.where((task) {
+          return selectedPriorities.contains(task.priority);
+        }).toList();
+      }
 
-    if (sortBy != null) {
-      query = query.orderBy(sortBy, descending: descending);
-    }
+      if (sortBy != null) {
+        filteredTasks.sort((a, b) {
+          final aValue = a.toMap()[sortBy];
+          final bValue = b.toMap()[sortBy];
+          return descending
+              ? bValue.compareTo(aValue)
+              : aValue.compareTo(bValue);
+        });
+      }
 
-    return query.snapshots().map((snapshot) => snapshot.docs
-        .map((doc) => Task.fromMap(doc.data() as Map<String, dynamic>))
-        .toList());
+      return filteredTasks;
+    });
   }
 
   Future<void> addTask(Task task) async {
-    try {
-      // Try Firebase first
-      await _firestore.collection('tasks').doc(task.id).set(task.toMap());
-      await _localStorage.saveTask(task);
-      return;
-    } catch (e) {
-      // Handle offline case
-      try {
-        task.isSynced = false;
-        await _localStorage.saveTask(task);
-        return;
-      } catch (localError) {
-        // Only throw if both Firebase and local storage fail
-        throw Exception('Failed to save task: ${localError.toString()}');
-      }
-    }
-  }
+    tasks.add(task);
+    await _localStorage.saveTask(task);
 
-  Future<void> updateTask(Task task) async {
     try {
-      await _firestore.collection('tasks').doc(task.id).update(task.toMap());
+      await _firestore.collection('tasks').doc(task.id).set(task.toMap());
+      task.isSynced = true;
       await _localStorage.updateTask(task);
     } catch (e) {
       task.isSynced = false;
       await _localStorage.updateTask(task);
-      rethrow;
+    }
+  }
+
+  Future<void> updateTask(Task task) async {
+    final index = tasks.indexWhere((t) => t.id == task.id);
+    if (index != -1) {
+      tasks[index] = task;
+      await _localStorage.updateTask(task);
+
+      try {
+        await _firestore.collection('tasks').doc(task.id).update(task.toMap());
+        task.isSynced = true;
+        await _localStorage.updateTask(task);
+      } catch (e) {
+        task.isSynced = false;
+        await _localStorage.updateTask(task);
+      }
     }
   }
 
   Future<void> deleteTask(String taskId) async {
+    tasks.removeWhere((task) => task.id == taskId);
+    await _localStorage.markTaskForDeletion(taskId);
+
     try {
       await _firestore.collection('tasks').doc(taskId).delete();
-      await _localStorage.deleteTask(taskId);
+      await _localStorage.removeFromDeletionQueue(taskId);
     } catch (e) {
-      await _localStorage.markTaskForDeletion(taskId);
-      rethrow;
-    }
-  }
-
-  Future<void> batchUpdateTasks(
-      List<String> taskIds, Map<String, dynamic> updates) async {
-    final batch = _firestore.batch();
-
-    for (final taskId in taskIds) {
-      final taskRef = _firestore.collection('tasks').doc(taskId);
-      batch.update(taskRef, updates);
-    }
-
-    try {
-      await batch.commit();
-    } catch (e) {
-      // Handle offline case - save updates locally
-      for (final taskId in taskIds) {
-        final task = await getTaskById(taskId);
-        if (task != null) {
-          task.isSynced = false;
-          await _localStorage.updateTask(task);
-        }
-      }
-      rethrow;
-    }
-  }
-
-  // Added helper method to get single task
-  Future<Task?> getTaskById(String taskId) async {
-    try {
-      final doc = await _firestore.collection('tasks').doc(taskId).get();
-      if (doc.exists) {
-        return Task.fromMap(doc.data() as Map<String, dynamic>);
-      }
-      return null;
-    } catch (e) {
-      // Try to get from local storage if offline
-      return await _localStorage.getTask(taskId);
-    }
-  }
-
-  // Added method to sync offline tasks
-  Future<void> syncOfflineTasks() async {
-    try {
-      final unsyncedTasks = await _localStorage.getUnsyncedTasks();
-      for (final task in unsyncedTasks) {
-        if (task.isSynced == false) {
-          await _firestore.collection('tasks').doc(task.id).set(task.toMap());
-          task.isSynced = true;
-          await _localStorage.updateTask(task);
-        }
-      }
-    } catch (e) {
-      Get.snackbar(
-        'Sync Error',
-        'Failed to sync some tasks. Will try again later.',
-        backgroundColor: Appcolors.red,
-        colorText: Appcolors.red,
-      );
-      rethrow;
+      log('Task marked for deletion: $e');
     }
   }
 }
