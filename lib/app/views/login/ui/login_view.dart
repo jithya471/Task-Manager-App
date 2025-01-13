@@ -16,7 +16,6 @@ class LoginView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Appcolors.background,
       appBar: AppBar(
         backgroundColor: Appcolors.primary,
         centerTitle: true,
@@ -58,7 +57,7 @@ class LoginView extends StatelessWidget {
                           )),
                       Text(
                         'Remember Me',
-                        style: style(14, FontWeight.w400, Appcolors.black),
+                        style: style(14, FontWeight.w400, Appcolors.lightGrey),
                       ),
                     ],
                   ),
@@ -85,7 +84,7 @@ class LoginView extends StatelessWidget {
                     children: [
                       TextSpan(
                         text: 'Don\'t have an account?',
-                        style: style(14, FontWeight.w400, Appcolors.black),
+                        style: style(14, FontWeight.w400, Appcolors.lightGrey),
                       ),
                       TextSpan(
                         text: '  Sign up',

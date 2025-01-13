@@ -9,6 +9,7 @@ import 'package:task_manager/app/utils/styles.dart';
 import 'package:get/get.dart';
 import 'package:task_manager/app/views/add_task/ui/add_task_view.dart';
 import 'package:task_manager/app/views/home/controller/home_controller.dart';
+import 'package:task_manager/theme_controller.dart';
 
 class HomeView extends StatefulWidget {
   const HomeView({super.key});
@@ -44,6 +45,8 @@ class _HomeViewState extends State<HomeView> {
   }
 
   PreferredSizeWidget _buildAppBar() {
+    final themeController = Get.put(ThemeController());
+
     return AppBar(
       backgroundColor: Appcolors.primary,
       centerTitle: true,
@@ -52,8 +55,14 @@ class _HomeViewState extends State<HomeView> {
         style: style(18, FontWeight.w500, Appcolors.white),
       ),
       leading: IconButton(
-        icon: const Icon(Icons.brightness_4, color: Appcolors.white),
-        onPressed: () {},
+        icon: Icon(
+          Icons.brightness_6,
+          color: Appcolors.white,
+        ),
+        onPressed: () {
+          themeController
+              .toggleTheme(); // This should update the theme immediately
+        },
       ),
       actions: [
         IconButton(

@@ -15,7 +15,6 @@ class RegisterView extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        backgroundColor: Appcolors.primary,
         centerTitle: true,
         automaticallyImplyLeading: false,
         title: Text(

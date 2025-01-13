@@ -51,7 +51,6 @@ class _AddTaskViewState extends State<AddTaskView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Appcolors.background,
       appBar: AppBar(
         centerTitle: true,
         leading: IconButton(

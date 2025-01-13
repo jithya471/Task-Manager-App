@@ -39,6 +39,8 @@ class HomeController extends GetxController {
   RxBool isDescending = false.obs;
 
   late StreamSubscription<List<Task>> _tasksSubscription;
+  var isDarkMode = false.obs;
+
   Future<void> syncTask(Task task) async {
     if (!task.isSynced) {
       try {
@@ -164,8 +166,6 @@ class HomeController extends GetxController {
     await _notificationsService.cancelTaskReminder(taskId);
   }
 
-  
-
   Future<void> logout() async {
     final confirm = await Get.dialog(
       AlertDialog(
@@ -186,8 +186,7 @@ class HomeController extends GetxController {
 
     if (confirm == true) {
       await _authService.logoutUser();
-      Get.offAll(
-          () => AppRoutes.loginView); 
+      Get.offAll(() => AppRoutes.loginView);
       Get.snackbar(
         'Logged Out',
         'You have successfully logged out.',
